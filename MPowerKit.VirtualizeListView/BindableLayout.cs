@@ -3,9 +3,14 @@ using System.Collections.Specialized;
 
 namespace MPowerKit.VirtualizeListView;
 
-public static class BindableLayout
+public partial class BindableLayout : Behavior<Layout>
 {
-    private static readonly Dictionary<IEnumerable, List<WeakReference<BindableObject>>> _bindableObjects = [];
+    private static void OnPropertyChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is not Layout layout) return;
+
+        if (!layout.Behaviors.OfType<BindableLayout>().Any()) layout.Behaviors.Add(new BindableLayout());
+    }
 
     #region ItemTemplate
     public static readonly BindableProperty ItemTemplateProperty =
@@ -13,7 +18,8 @@ public static class BindableLayout
             "ItemTemplate",
             typeof(DataTemplate),
             typeof(BindableLayout),
-            null);
+            null,
+            propertyChanged: OnPropertyChanged);
 
     public static DataTemplate GetItemTemplate(BindableObject view) => (DataTemplate)view.GetValue(ItemTemplateProperty);
 
@@ -27,96 +33,137 @@ public static class BindableLayout
             typeof(IEnumerable),
             typeof(BindableLayout),
             null,
-            propertyChanged: OnItemsSourcePropertyChanged,
-            propertyChanging: OnItemsSourcePropertyChanging);
+            propertyChanged: OnPropertyChanged);
 
     public static IEnumerable GetItemsSource(BindableObject view) => (IEnumerable)view.GetValue(ItemsSourceProperty);
 
     public static void SetItemsSource(BindableObject view, IEnumerable value) => view.SetValue(ItemsSourceProperty, value);
+    #endregion
 
-    private static void OnItemsSourcePropertyChanging(BindableObject bindable, object oldValue, object newValue)
+    private Layout? _layout;
+
+    protected override void OnAttachedTo(Layout bindable)
     {
-        if (oldValue is INotifyCollectionChanged collectionChanged)
-        {
-            collectionChanged.CollectionChanged -= CollectionChanged_CollectionChanged;
-        }
+        base.OnAttachedTo(bindable);
 
-        if (bindable is Layout layout)
-        {
-            ClearItems(layout);
-        }
+        _layout = bindable;
 
-        if (oldValue is IEnumerable enumerable)
-        {
-            RemoveBindableObject(enumerable, bindable);
-        }
+        Init(true);
+
+        bindable.PropertyChanging += Layout_PropertyChanging;
+        bindable.PropertyChanged += Layout_PropertyChanged;
     }
 
-    private static void RemoveBindableObject(IEnumerable itemsSource, BindableObject bindable)
+    protected override void OnDetachingFrom(Layout bindable)
     {
-        if (_bindableObjects.TryGetValue(itemsSource, out var bindableList))
-        {
-            bindableList.RemoveAll(weakRef => !weakRef.TryGetTarget(out var target) || ReferenceEquals(target, bindable));
+        bindable.PropertyChanging -= Layout_PropertyChanging;
+        bindable.PropertyChanged -= Layout_PropertyChanged;
 
-            if (bindableList.Count == 0) _bindableObjects.Remove(itemsSource);
-        }
+        Reset(true);
+
+        _layout = null;
+
+        base.OnDetachingFrom(bindable);
     }
 
-    private static void OnItemsSourcePropertyChanged(BindableObject bindable, object oldValue, object newValue)
+    private void Layout_PropertyChanging(object sender, PropertyChangingEventArgs e)
     {
-        if (newValue is INotifyCollectionChanged collectionChanged)
+        if (e.PropertyName == BindableLayout.ItemsSourceProperty.PropertyName)
         {
-            collectionChanged.CollectionChanged += CollectionChanged_CollectionChanged;
+            Reset();
         }
-
-        if (newValue is IEnumerable enumerable && bindable is Layout layout)
+        else if (e.PropertyName == BindableLayout.ItemTemplateProperty.PropertyName)
         {
-            AddBindableObject(enumerable, layout);
-
-            AddItems(layout, enumerable, 0);
-        }
-    }
-
-    private static void AddBindableObject(IEnumerable itemsSource, BindableObject bindable)
-    {
-        if (!_bindableObjects.TryGetValue(itemsSource, out var value))
-        {
-            _bindableObjects[itemsSource] = value = [];
-        }
-
-        value.Add(new(bindable));
-    }
-
-    private static void CollectionChanged_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (sender is not IEnumerable enumerable || !_bindableObjects.TryGetValue(enumerable, out var wrList) || wrList?.Count is null or 0) return;
-
-        var layoutList = wrList.Select(wr => wr.TryGetTarget(out var target) ? target : null).OfType<Layout>();
-        foreach (var layout in layoutList)
-        {
-            switch (e.Action)
+            if (sender is Layout layout)
             {
-                case NotifyCollectionChangedAction.Add:
-                    AddItems(layout, e.NewItems, e.NewStartingIndex);
-                    break;
-                case NotifyCollectionChangedAction.Remove:
-                    RemoveItems(layout, e.OldItems, e.OldStartingIndex);
-                    break;
-                case NotifyCollectionChangedAction.Replace:
-                    AddItems(layout, e.NewItems, e.NewStartingIndex);
-                    RemoveItems(layout, e.OldItems, e.OldStartingIndex);
-                    break;
-                case NotifyCollectionChangedAction.Move:
-                    MoveItems(layout, e.OldItems, e.OldStartingIndex, e.NewStartingIndex);
-                    break;
-                case NotifyCollectionChangedAction.Reset:
-                    ClearItems(layout);
-                    break;
+                ClearItems(layout);
             }
         }
     }
 
-    public static void ClearItems(this Layout layout)
+    private void Layout_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == BindableLayout.ItemsSourceProperty.PropertyName)
+        {
+            Init();
+        }
+        else if (e.PropertyName == BindableLayout.ItemTemplateProperty.PropertyName)
+        {
+            if (sender is Layout layout && GetItemsSource(layout) is { } enumerable)
+            {
+                AddItems(layout, enumerable, 0);
+            }
+        }
+    }
+
+    private void Reset(bool isDetaching = false)
+    {
+        if (_layout is null) return;
+
+        var source = GetItemsSource(_layout);
+
+        if (source is INotifyCollectionChanged collectionChanged)
+        {
+            collectionChanged.CollectionChanged -= CollectionChanged_CollectionChanged;
+        }
+
+        if (!isDetaching)
+        {
+            if (source is IEnumerable enumerable)
+            {
+                ClearItems(_layout);
+            }
+        }
+    }
+
+    private void Init(bool isAttaching = false)
+    {
+        if (_layout is null) return;
+
+        if (isAttaching)
+        {
+            ClearItems(_layout);
+        }
+
+        var source = GetItemsSource(_layout);
+
+        if (source is IEnumerable enumerable)
+        {
+            AddItems(_layout, enumerable, 0);
+        }
+
+        if (source is INotifyCollectionChanged collectionChanged)
+        {
+            collectionChanged.CollectionChanged += CollectionChanged_CollectionChanged;
+        }
+    }
+
+    private void CollectionChanged_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_layout is not { } layout || sender is not { }) return;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                AddItems(layout, e.NewItems, e.NewStartingIndex);
+                break;
+            case NotifyCollectionChangedAction.Remove:
+                RemoveItems(layout, e.OldItems, e.OldStartingIndex);
+                break;
+            case NotifyCollectionChangedAction.Replace:
+                RemoveItems(layout, e.OldItems, e.OldStartingIndex);
+                AddItems(layout, e.NewItems, e.NewStartingIndex);
+                break;
+            case NotifyCollectionChangedAction.Move:
+                MoveItems(layout, e.OldItems, e.OldStartingIndex, e.NewStartingIndex);
+                break;
+            case NotifyCollectionChangedAction.Reset:
+                ClearItems(layout);
+                break;
+        }
+    }
+
+    public static void ClearItems(Layout layout)
     {
         var items = layout.Children.OfType<VisualElement>().ToList();
         layout.Clear();
@@ -128,11 +175,7 @@ public static class BindableLayout
 
     private static void AddItems(Layout layout, IEnumerable? items, int index)
     {
-        if (items is null) return;
-
-        var template = GetItemTemplate(layout);
-
-        if (template is null) return;
+        if (items is null || GetItemTemplate(layout) is not { } template) return;
 
         foreach (var item in items)
         {
@@ -160,17 +203,6 @@ public static class BindableLayout
         }
     }
 
-    public static void DisconnectItem(this VisualElement? visualElement)
-    {
-        if (visualElement is null) return;
-
-        visualElement.BindingContext = null;
-        visualElement.Behaviors?.Clear();
-#if NET9_0_OR_GREATER
-        visualElement.DisconnectHandlers();
-#endif
-    }
-
     private static void MoveItems(Layout layout, IEnumerable? items, int oldIndex, int newIndex)
     {
         if (items is null) return;
@@ -180,5 +212,13 @@ public static class BindableLayout
             layout.Move(oldIndex, newIndex);
         }
     }
-    #endregion
+
+    public static void DisconnectItem(VisualElement? visualElement)
+    {
+        if (visualElement is null) return;
+
+        visualElement.BindingContext = null;
+        visualElement.Behaviors?.Clear();
+        visualElement.DisconnectHandlers();
+    }
 }

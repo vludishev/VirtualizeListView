@@ -251,7 +251,7 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
     {
         LaidOutItems.Clear();
         CachedCells.Clear();
-        this.ClearItems();
+        BindableLayout.ClearItems(this);
         (this as IView).InvalidateMeasure();
     }
 

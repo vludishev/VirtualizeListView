@@ -15,7 +15,7 @@ public class CellHolder : Grid
         {
             if (value == Content) return;
 
-            this.ClearItems();
+            BindableLayout.ClearItems(this);
 
             if (value is null) return;
 
