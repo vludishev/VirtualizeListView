@@ -26,6 +26,22 @@ public partial class BindableLayout : Behavior<Layout>
     public static void SetItemTemplate(BindableObject view, DataTemplate value) => view.SetValue(ItemTemplateProperty, value);
     #endregion
 
+    #region ItemTemplateSelector
+    public static readonly BindableProperty ItemTemplateSelectorProperty =
+        BindableProperty.CreateAttached(
+            "ItemTemplateSelector",
+            typeof(DataTemplateSelector),
+            typeof(BindableLayout),
+            null,
+            propertyChanged: OnPropertyChanged);
+
+    public static DataTemplateSelector? GetItemTemplateSelector(BindableObject view) =>
+        (DataTemplateSelector?)view.GetValue(ItemTemplateSelectorProperty);
+
+    public static void SetItemTemplateSelector(BindableObject view, DataTemplateSelector? value) =>
+        view.SetValue(ItemTemplateSelectorProperty, value);
+    #endregion
+
     #region ItemsSource
     public static readonly BindableProperty ItemsSourceProperty =
         BindableProperty.CreateAttached(
@@ -79,6 +95,13 @@ public partial class BindableLayout : Behavior<Layout>
                 ClearItems(layout);
             }
         }
+        else if (e.PropertyName == BindableLayout.ItemTemplateSelectorProperty.PropertyName)
+        {
+            if (sender is Layout layout)
+            {
+                ClearItems(layout);
+            }
+        }
     }
 
     private void Layout_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -88,6 +111,13 @@ public partial class BindableLayout : Behavior<Layout>
             Init();
         }
         else if (e.PropertyName == BindableLayout.ItemTemplateProperty.PropertyName)
+        {
+            if (sender is Layout layout && GetItemsSource(layout) is { } enumerable)
+            {
+                AddItems(layout, enumerable, 0);
+            }
+        }
+        else if (e.PropertyName == BindableLayout.ItemTemplateSelectorProperty.PropertyName)
         {
             if (sender is Layout layout && GetItemsSource(layout) is { } enumerable)
             {
@@ -159,6 +189,10 @@ public partial class BindableLayout : Behavior<Layout>
                 break;
             case NotifyCollectionChangedAction.Reset:
                 ClearItems(layout);
+                if (GetItemsSource(layout) is { } source)
+                {
+                    AddItems(layout, source, 0);
+                }
                 break;
         }
     }
@@ -171,23 +205,24 @@ public partial class BindableLayout : Behavior<Layout>
         {
             DisconnectItem(item);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     private static void AddItems(Layout layout, IEnumerable? items, int index)
     {
-        if (items is null || GetItemTemplate(layout) is not { } template) return;
+        if (items is null) return;
 
         foreach (var item in items)
         {
-            while (template is DataTemplateSelector selector)
-            {
-                template = selector.SelectTemplate(item, layout);
-            }
+            var template = ResolveTemplate(layout, item);
 
-            if (template.CreateContent() is not View view) continue;
+            if (template?.CreateContent() is not View view) continue;
             view.BindingContext = item;
             layout.Insert(index++, view);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: true);
     }
 
     private static void RemoveItems(Layout layout, IEnumerable? items, int index)
@@ -201,6 +236,8 @@ public partial class BindableLayout : Behavior<Layout>
 
             DisconnectItem(view);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     private static void MoveItems(Layout layout, IEnumerable? items, int oldIndex, int newIndex)
@@ -211,6 +248,8 @@ public partial class BindableLayout : Behavior<Layout>
         {
             layout.Move(oldIndex, newIndex);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     public static void DisconnectItem(VisualElement? visualElement)
@@ -220,5 +259,49 @@ public partial class BindableLayout : Behavior<Layout>
         visualElement.BindingContext = null;
         visualElement.Behaviors?.Clear();
         visualElement.DisconnectHandlers();
+    }
+
+    private static DataTemplate? ResolveTemplate(Layout layout, object item)
+    {
+        if (GetItemTemplateSelector(layout) is DataTemplateSelector selector)
+        {
+            return selector.SelectTemplate(item, layout);
+        }
+
+        var template = GetItemTemplate(layout);
+        while (template is DataTemplateSelector templateSelector)
+        {
+            template = templateSelector.SelectTemplate(item, layout);
+        }
+
+        return template;
+    }
+
+    private static void RequestParentRelayout(Layout layout, bool triggerCellRefresh)
+    {
+        (layout as IView)?.InvalidateMeasure();
+        (layout.Parent as IView)?.InvalidateMeasure();
+        (layout.Parent?.Parent as IView)?.InvalidateMeasure();
+
+        if (!triggerCellRefresh || layout.Parent is not CellHolder holder || !holder.Attached)
+        {
+            return;
+        }
+
+        holder.NotifyBound();
+
+        var dispatcher = holder.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
+        {
+            if (holder.Attached)
+            {
+                holder.NotifyBound();
+            }
+        });
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Android.Content;
+using Android.Runtime;
 using Android.Views;
 using Android.Widget;
 
@@ -16,12 +17,13 @@ public partial class VirtualizeListViewHandler : ScrollViewHandler
         var scrollView = new SmoothScrollView(
             new ContextThemeWrapper(MauiContext!.Context, Resource.Style.scrollViewTheme),
             null!,
-            Resource.Attribute.scrollViewStyle,
-            (VirtualView as VirtualizeListView)!)
+            Resource.Attribute.scrollViewStyle)
         {
             ClipToOutline = true,
             FillViewport = true
         };
+
+        scrollView.Attach((VirtualView as VirtualizeListView)!);
 
         return scrollView;
     }
@@ -32,28 +34,36 @@ public class SmoothScrollView : MauiScrollView
     private OverScroller? _scroller;
     private VirtualizeListView? _listView;
 
-    public SmoothScrollView(Context context, VirtualizeListView listView) : base(context)
+    public SmoothScrollView(Context context) : base(context)
     {
-        Init(listView);
+        InitScroller();
     }
 
-    public SmoothScrollView(Context context, Android.Util.IAttributeSet attrs, VirtualizeListView listView) : base(context, attrs)
+    public SmoothScrollView(Context context, Android.Util.IAttributeSet attrs) : base(context, attrs)
     {
-        Init(listView);
+        InitScroller();
     }
 
-    public SmoothScrollView(Context context, Android.Util.IAttributeSet attrs, int defStyleAttr, VirtualizeListView listView) : base(context, attrs, defStyleAttr)
+    public SmoothScrollView(Context context, Android.Util.IAttributeSet attrs, int defStyleAttr) : base(context, attrs, defStyleAttr)
     {
-        Init(listView);
+        InitScroller();
     }
 
-    private void Init(VirtualizeListView listView)
+    protected SmoothScrollView(IntPtr javaReference, JniHandleOwnership transfer) : base(javaReference, transfer)
+    {
+    }
+
+    public void Attach(VirtualizeListView listView)
+    {
+        _listView = listView;
+    }
+
+    private void InitScroller()
     {
         var field = Java.Lang.Class.FromType(typeof(NestedScrollView)).GetDeclaredField("mScroller");
         field.Accessible = true;
 
         _scroller = field.Get(this) as OverScroller;
-        _listView = listView;
     }
 
     public virtual void AdjustScroll(double dxdp, double dydp)

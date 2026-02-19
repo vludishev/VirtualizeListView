@@ -361,14 +361,14 @@ public partial class VirtualizeListView : ScrollView
         base.MeasureOverride(widthConstraint, heightConstraint);
 
         var desiredWidth = widthConstraint;
-        if (HorizontalOptions != LayoutOptions.Fill)
+        if (HorizontalOptions.Alignment != LayoutAlignment.Fill)
         {
             desiredWidth = horizontalPadding
                 + (Content?.DesiredSize.Width ?? 0d);
         }
 
         var desiredHeight = heightConstraint;
-        if (VerticalOptions != LayoutOptions.Fill)
+        if (VerticalOptions.Alignment != LayoutAlignment.Fill)
         {
             desiredHeight = verticalPadding
                 + (Content?.DesiredSize.Height ?? 0d);
