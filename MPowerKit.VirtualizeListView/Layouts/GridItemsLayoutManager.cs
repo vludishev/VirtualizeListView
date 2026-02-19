@@ -233,6 +233,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
         if (IsOrientation(ScrollOrientation.Vertical))
         {
             var availableWidth = GetEstimatedItemSize(item, availableSpace).Width;
+#if MACIOS
             if (isSupplementary)
             {
                 measure = MeasureSupplementaryItem(item, availableWidth, double.PositiveInfinity);
@@ -240,6 +241,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
                 item.Size = new(availableWidth, measure.Height);
                 return measure;
             }
+#endif
 
             measure = iview.Measure(availableWidth, double.PositiveInfinity);
 
@@ -260,6 +262,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
         else
         {
             var availableHeight = GetEstimatedItemSize(item, availableSpace).Height;
+#if MACIOS
             if (isSupplementary)
             {
                 measure = MeasureSupplementaryItem(item, double.PositiveInfinity, availableHeight);
@@ -267,6 +270,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
                 item.Size = new(measure.Width, availableHeight);
                 return measure;
             }
+#endif
 
             measure = iview.Measure(double.PositiveInfinity, availableHeight);
 
@@ -288,6 +292,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
         return measure;
     }
 
+#if MACIOS
     private static Size MeasureSupplementaryItem(VirtualizeListViewItem item, double widthConstraint, double heightConstraint)
     {
         var measured = (item.Cell as IView)!.Measure(widthConstraint, heightConstraint);
@@ -315,6 +320,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
 
         return result;
     }
+#endif
 
     protected override void ArrangeItem(IReadOnlyList<VirtualizeListViewItem> items, VirtualizeListViewItem item, Size availableSpace)
     {

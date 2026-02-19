@@ -468,40 +468,9 @@ public class DataAdapter : IDisposable
             items.Add(new FooterItem(ListView.Footer));
         }
 
-        if (AreItemsEquivalent(InternalItems, items))
-        {
-            return;
-        }
-
         InternalItems = items;
 
         NotifyDataSetChanged();
-    }
-
-    protected virtual bool AreItemsEquivalent(IReadOnlyList<AdapterItem> left, IReadOnlyList<AdapterItem> right)
-    {
-        if (left.Count != right.Count)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < left.Count; i++)
-        {
-            var current = left[i];
-            var next = right[i];
-
-            if (current.GetType() != next.GetType())
-            {
-                return false;
-            }
-
-            if (!ReferenceEquals(current.Data, next.Data))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private void NotifyWrapper(Action notifyAction)

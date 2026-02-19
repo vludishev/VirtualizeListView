@@ -2,11 +2,13 @@
 
 public class CellHolder : Grid
 {
+#if MACIOS
     private const double SizeEpsilon = 0.5d;
     private const double DefaultRequest = -1d;
     private double _lastNotifiedWidth = double.NaN;
     private double _lastNotifiedHeight = double.NaN;
     private bool _sizeRefreshScheduled;
+#endif
 
     public VirtualizeListViewItem? Item { get; set; }
     public bool IsCached => Item is null;
@@ -19,6 +21,7 @@ public class CellHolder : Grid
         get => this.ElementAtOrDefault(0) as View;
         set
         {
+#if MACIOS
             var oldContent = Content;
             if (ReferenceEquals(value, oldContent)) return;
 
@@ -31,13 +34,24 @@ public class CellHolder : Grid
 
             AttachContentHandlers(value);
             this.Add(value);
+#else
+            if (value == Content) return;
+
+            BindableLayout.ClearItems(this);
+
+            if (value is null) return;
+
+            this.Add(value);
+#endif
         }
     }
 
     public void NotifyBound()
     {
+#if MACIOS
         ResetSizeTracking();
         ScheduleSizeRefresh();
+#endif
     }
 
     protected override Size ArrangeOverride(Rect bounds)
@@ -56,12 +70,18 @@ public class CellHolder : Grid
     {
         base.OnSizeAllocated(width, height);
 
+#if MACIOS
         NotifyItemSizeChanged(width, height, force: false);
+        return;
+#else
+        Item?.OnCellSizeChanged();
+#endif
     }
 
+#if MACIOS
     private void Content_SizeChanged(object? sender, EventArgs e)
     {
-        NotifyItemSizeChanged(this.Width, this.Height, force: false);
+        NotifyItemSizeChanged(Width, Height, force: false);
     }
 
     private void Layout_ChildAdded(object? sender, ElementEventArgs e)
@@ -105,7 +125,7 @@ public class CellHolder : Grid
         var dispatcher = Dispatcher;
         if (dispatcher is null)
         {
-            NotifyItemSizeChanged(this.Width, this.Height, force: true);
+            NotifyItemSizeChanged(Width, Height, force: true);
             return;
         }
 
@@ -113,7 +133,7 @@ public class CellHolder : Grid
         dispatcher.Dispatch(() =>
         {
             _sizeRefreshScheduled = false;
-            NotifyItemSizeChanged(this.Width, this.Height, force: true);
+            NotifyItemSizeChanged(Width, Height, force: true);
         });
     }
 
@@ -126,38 +146,25 @@ public class CellHolder : Grid
 
         var content = Content;
         var measuredContent = TryMeasureContent(content, width);
-        var measuredContentWidth = measuredContent.Width;
         var measuredContentHeight = measuredContent.Height;
         var isSupplementary = Item.AdapterItem is DataAdapter.HeaderItem or DataAdapter.FooterItem;
 
         if (isSupplementary && measuredContentHeight > 0d)
         {
             // iOS may allocate supplementary cells to viewport height when using translations.
-            // Keep the holder height aligned with measured content so scroll range is correct.
+            // Keep holder height aligned with measured content to keep scroll range stable.
             if (Math.Abs(HeightRequest - measuredContentHeight) > SizeEpsilon)
             {
                 HeightRequest = measuredContentHeight;
                 force = true;
             }
-        }
 
-        if (isSupplementary)
-        {
-            if (measuredContentHeight > 0d)
-            {
-                height = measuredContentHeight;
-            }
+            height = measuredContentHeight;
         }
         else if (content is not null)
         {
             width = Math.Max(width, content.Width);
             height = Math.Max(height, content.Height);
-        }
-
-        if (!isSupplementary)
-        {
-            width = Math.Max(width, measuredContentWidth);
-            height = Math.Max(height, measuredContentHeight);
         }
 
         if (width <= 0d || height <= 0d)
@@ -190,11 +197,6 @@ public class CellHolder : Grid
         {
             HeightRequest = DefaultRequest;
         }
-
-        if (Math.Abs(WidthRequest - DefaultRequest) > SizeEpsilon)
-        {
-            WidthRequest = DefaultRequest;
-        }
     }
 
     private static Size TryMeasureContent(View? content, double width)
@@ -215,4 +217,5 @@ public class CellHolder : Grid
             Math.Max(measured.Width, desired.Width),
             Math.Max(measured.Height, desired.Height));
     }
+#endif
 }
