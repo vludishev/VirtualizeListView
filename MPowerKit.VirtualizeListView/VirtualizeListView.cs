@@ -4,6 +4,10 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 
+#if ANDROID
+using Microsoft.Maui.Platform;
+#endif
+
 namespace MPowerKit.VirtualizeListView;
 
 public partial class VirtualizeListView : ScrollView
@@ -12,6 +16,10 @@ public partial class VirtualizeListView : ScrollView
     public event EventHandler<object>? ItemAppearing;
     public event EventHandler<object>? ItemDisappearing;
     public event EventHandler<object>? ItemTapped;
+
+#if MACIOS
+    private bool _layoutRefreshScheduled;
+#endif
 
     protected object? PrevAppearedItem { get; set; }
 
@@ -31,6 +39,9 @@ public partial class VirtualizeListView : ScrollView
         base.OnHandlerChanged();
 
         ChangeScrollSpeed();
+#if MACIOS
+        ScheduleLayoutRefresh();
+#endif
     }
 
     protected override void OnPropertyChanging([CallerMemberName] string? propertyName = null)
@@ -83,6 +94,9 @@ public partial class VirtualizeListView : ScrollView
             || propertyName == GroupFooterTemplateProperty.PropertyName)
         {
             ReloadData();
+#if MACIOS
+            ScheduleLayoutRefresh();
+#endif
         }
         else if (propertyName == HeaderProperty.PropertyName
             || propertyName == HeaderTemplateProperty.PropertyName)
@@ -254,12 +268,55 @@ public partial class VirtualizeListView : ScrollView
         base.OnSizeAllocated(width, height);
 
         OnSizeChanged();
+#if MACIOS
+        if (LayoutManager?.ReadOnlyLaidOutItems.Count == 0 && Adapter?.ItemsCount > 0)
+        {
+            ScheduleLayoutRefresh();
+        }
+#endif
     }
 
     protected virtual void OnSizeChanged()
     {
         LayoutManager?.SendListViewContentSizeChanged();
     }
+
+#if MACIOS
+    protected virtual void ScheduleLayoutRefresh()
+    {
+        if (_layoutRefreshScheduled) return;
+
+        var dispatcher = Dispatcher;
+        if (dispatcher is null)
+        {
+            RefreshLayout();
+            return;
+        }
+
+        _layoutRefreshScheduled = true;
+        dispatcher.Dispatch(() =>
+        {
+            _layoutRefreshScheduled = false;
+            RefreshLayout();
+        });
+    }
+
+    protected virtual void RefreshLayout()
+    {
+        if (Handler is null || Width <= 0d || Height <= 0d) return;
+
+        var layoutManager = LayoutManager;
+        if (layoutManager is null) return;
+
+        if (layoutManager.ReadOnlyLaidOutItems.Count == 0 || layoutManager.VisibleItems.Count == 0)
+        {
+            layoutManager.InvalidateLayout();
+            return;
+        }
+
+        layoutManager.SendListViewContentSizeChanged();
+    }
+#endif
 
     protected virtual void OnAdapterChanging()
     {
