@@ -74,11 +74,16 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
     protected virtual bool DoesListViewHaveSize()
     {
         var listView = ListView;
+        var availableSpace = AvailableSpace;
         return listView is not null
             && !double.IsNaN(listView.Width)
             && !double.IsNaN(listView.Height)
-            && listView.Width >= 0d
-            && listView.Height >= 0d
+            && !double.IsInfinity(availableSpace.Width)
+            && !double.IsInfinity(availableSpace.Height)
+            && listView.Width > 0d
+            && listView.Height > 0d
+            && availableSpace.Width > 0d
+            && availableSpace.Height > 0d
             && this.Handler is not null;
     }
 
@@ -193,7 +198,15 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
 
         var newSpace = AvailableSpace;
 
-        if (newSpace == PrevAvailableSpace) return;
+        if (newSpace == PrevAvailableSpace)
+        {
+            if (LaidOutItems.Count == 0 && Adapter?.ItemsCount > 0)
+            {
+                InvalidateLayout();
+            }
+
+            return;
+        }
 
         PrevAvailableSpace = newSpace;
 
@@ -498,7 +511,7 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
             return;
         }
 
-        // if there is no any visible item 
+        // if there is no any visible item
         // or we replaced items after the first visible item
         // so we dont need to adjust the scroll position
         if (firstVisibleItem is null || firstVisibleItem.Position < startingIndex)
@@ -762,14 +775,13 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
 
         PrevContentSize = desiredSize;
 
-        View? view =
 #if MACIOS
-            ListView;
+        (this as IView)?.InvalidateMeasure();
+        (ListView as IView)?.InvalidateMeasure();
 #else
-            this;
-#endif
-
+        View? view = this;
         (view as IView)?.InvalidateMeasure();
+#endif
 
         return true;
     }

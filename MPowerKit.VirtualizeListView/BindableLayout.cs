@@ -159,6 +159,10 @@ public partial class BindableLayout : Behavior<Layout>
                 break;
             case NotifyCollectionChangedAction.Reset:
                 ClearItems(layout);
+                if (GetItemsSource(layout) is { } source)
+                {
+                    AddItems(layout, source, 0);
+                }
                 break;
         }
     }
@@ -171,14 +175,19 @@ public partial class BindableLayout : Behavior<Layout>
         {
             DisconnectItem(item);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     private static void AddItems(Layout layout, IEnumerable? items, int index)
     {
-        if (items is null || GetItemTemplate(layout) is not { } template) return;
+        if (items is null) return;
 
         foreach (var item in items)
         {
+            var template = GetItemTemplate(layout);
+            if (template is null) continue;
+
             while (template is DataTemplateSelector selector)
             {
                 template = selector.SelectTemplate(item, layout);
@@ -188,6 +197,8 @@ public partial class BindableLayout : Behavior<Layout>
             view.BindingContext = item;
             layout.Insert(index++, view);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: true);
     }
 
     private static void RemoveItems(Layout layout, IEnumerable? items, int index)
@@ -201,6 +212,8 @@ public partial class BindableLayout : Behavior<Layout>
 
             DisconnectItem(view);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     private static void MoveItems(Layout layout, IEnumerable? items, int oldIndex, int newIndex)
@@ -211,6 +224,8 @@ public partial class BindableLayout : Behavior<Layout>
         {
             layout.Move(oldIndex, newIndex);
         }
+
+        RequestParentRelayout(layout, triggerCellRefresh: false);
     }
 
     public static void DisconnectItem(VisualElement? visualElement)
@@ -220,5 +235,20 @@ public partial class BindableLayout : Behavior<Layout>
         visualElement.BindingContext = null;
         visualElement.Behaviors?.Clear();
         visualElement.DisconnectHandlers();
+    }
+
+    private static void RequestParentRelayout(Layout layout, bool triggerCellRefresh)
+    {
+#if MACIOS
+        (layout as IView)?.InvalidateMeasure();
+        (layout.Parent as IView)?.InvalidateMeasure();
+
+        if (!triggerCellRefresh || layout.Parent is not CellHolder holder || !holder.Attached)
+        {
+            return;
+        }
+
+        holder.NotifyBound();
+#endif
     }
 }

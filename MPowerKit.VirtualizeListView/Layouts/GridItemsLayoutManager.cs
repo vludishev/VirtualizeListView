@@ -224,6 +224,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
             || items.Count == 0 || item.Position == -1) return new();
 
         var iview = (item.Cell as IView)!;
+        var isSupplementary = Adapter!.IsSuplementary(item.Position);
 
         var direction = GetItemsFullDirection(items, item).FindAll(i => i.Cell?.WasMeasured is true);
 
@@ -232,6 +233,15 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
         if (IsOrientation(ScrollOrientation.Vertical))
         {
             var availableWidth = GetEstimatedItemSize(item, availableSpace).Width;
+#if MACIOS
+            if (isSupplementary)
+            {
+                measure = MeasureSupplementaryItem(item, availableWidth, double.PositiveInfinity);
+                item.MeasuredSize = measure;
+                item.Size = new(availableWidth, measure.Height);
+                return measure;
+            }
+#endif
 
             measure = iview.Measure(availableWidth, double.PositiveInfinity);
 
@@ -246,11 +256,21 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
                 }
             }
 
+            item.MeasuredSize = measure;
             item.Size = new(availableWidth, biggestHeight);
         }
         else
         {
             var availableHeight = GetEstimatedItemSize(item, availableSpace).Height;
+#if MACIOS
+            if (isSupplementary)
+            {
+                measure = MeasureSupplementaryItem(item, double.PositiveInfinity, availableHeight);
+                item.MeasuredSize = measure;
+                item.Size = new(measure.Width, availableHeight);
+                return measure;
+            }
+#endif
 
             measure = iview.Measure(double.PositiveInfinity, availableHeight);
 
@@ -265,11 +285,42 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
                 }
             }
 
+            item.MeasuredSize = measure;
             item.Size = new(biggestWidth, availableHeight);
         }
 
         return measure;
     }
+
+#if MACIOS
+    private static Size MeasureSupplementaryItem(VirtualizeListViewItem item, double widthConstraint, double heightConstraint)
+    {
+        var measured = (item.Cell as IView)!.Measure(widthConstraint, heightConstraint);
+        var result = measured;
+
+        if (item.Cell?.Content is IView contentView)
+        {
+            contentView.InvalidateMeasure();
+
+            var contentMeasured = contentView.Measure(widthConstraint, heightConstraint);
+            var desired = contentView.DesiredSize;
+
+            result = new(
+                Math.Max(contentMeasured.Width, desired.Width),
+                Math.Max(contentMeasured.Height, desired.Height));
+        }
+
+        if (item.Cell is { } holder)
+        {
+            if (result.Height > 0d)
+            {
+                holder.HeightRequest = result.Height;
+            }
+        }
+
+        return result;
+    }
+#endif
 
     protected override void ArrangeItem(IReadOnlyList<VirtualizeListViewItem> items, VirtualizeListViewItem item, Size availableSpace)
     {

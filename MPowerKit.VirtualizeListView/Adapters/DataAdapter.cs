@@ -252,6 +252,7 @@ public class DataAdapter : IDisposable
     {
         holder.BindingContext = item.Data;
         holder.Attached = true;
+        holder.NotifyBound();
 
         if (holder.Children[0] is not VirtualizeListViewCell cell) return;
 
