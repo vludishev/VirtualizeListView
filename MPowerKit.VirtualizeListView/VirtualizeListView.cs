@@ -267,6 +267,7 @@ public partial class VirtualizeListView : ScrollView
     {
         base.OnSizeAllocated(width, height);
 
+        UpdateLayoutManagerAvailableSpace(width, height);
         OnSizeChanged();
 #if MACIOS
         if (LayoutManager?.ReadOnlyLaidOutItems.Count == 0 && Adapter?.ItemsCount > 0)
@@ -279,6 +280,16 @@ public partial class VirtualizeListView : ScrollView
     protected virtual void OnSizeChanged()
     {
         LayoutManager?.SendListViewContentSizeChanged();
+    }
+
+    protected virtual void UpdateLayoutManagerAvailableSpace(double width, double height)
+    {
+        if (LayoutManager is null) return;
+
+        var horizontalPadding = Padding.HorizontalThickness + Margin.HorizontalThickness;
+        var verticalPadding = Padding.VerticalThickness + Margin.VerticalThickness;
+
+        LayoutManager.AvailableSpace = new(width - horizontalPadding, height - verticalPadding);
     }
 
 #if MACIOS
@@ -412,8 +423,10 @@ public partial class VirtualizeListView : ScrollView
         var horizontalPadding = Padding.HorizontalThickness + Margin.HorizontalThickness;
         var verticalPadding = Padding.VerticalThickness + Margin.VerticalThickness;
 
-        if (LayoutManager is not null)
-            LayoutManager.AvailableSpace = new(widthConstraint - horizontalPadding, heightConstraint - verticalPadding);
+        var availableWidth = ResolveMeasureSize(widthConstraint, Width);
+        var availableHeight = ResolveMeasureSize(heightConstraint, Height);
+
+        UpdateLayoutManagerAvailableSpace(availableWidth, availableHeight);
 
         base.MeasureOverride(widthConstraint, heightConstraint);
 
@@ -432,6 +445,18 @@ public partial class VirtualizeListView : ScrollView
         }
 
         return new(Math.Min(desiredWidth, widthConstraint), Math.Min(desiredHeight, heightConstraint));
+    }
+
+    private static double ResolveMeasureSize(double constraint, double allocatedSize)
+    {
+        if (double.IsNaN(allocatedSize) || double.IsInfinity(allocatedSize) || allocatedSize <= 0d)
+        {
+            return constraint;
+        }
+
+        return double.IsInfinity(constraint)
+            ? allocatedSize
+            : Math.Min(constraint, allocatedSize);
     }
 
     public virtual async Task ScrollToItem(object item, ScrollToPosition scrollToPosition, bool animated)

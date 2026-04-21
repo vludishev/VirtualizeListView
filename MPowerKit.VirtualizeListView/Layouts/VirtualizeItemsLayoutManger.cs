@@ -605,6 +605,8 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
 
 #if MACIOS
         (this.Parent as IView)?.InvalidateMeasure();
+#elif ANDROID
+        (this as IView)?.InvalidateMeasure();
 #elif WINDOWS
         (this.Parent?.Parent as IView)?.InvalidateMeasure();
 #endif

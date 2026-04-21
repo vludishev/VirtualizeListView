@@ -32,8 +32,10 @@ public class CellHolder : Grid
 
             if (value is null) return;
 
+            PrepareContent(value);
             AttachContentHandlers(value);
             this.Add(value);
+            InvalidateContentLayout(value);
 #else
             if (value == Content) return;
 
@@ -41,9 +43,48 @@ public class CellHolder : Grid
 
             if (value is null) return;
 
+            PrepareContent(value);
             this.Add(value);
+            InvalidateContentLayout(value);
 #endif
         }
+    }
+
+    public CellHolder()
+    {
+        HorizontalOptions = LayoutOptions.Fill;
+        VerticalOptions = LayoutOptions.Fill;
+        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+    }
+
+    private static void PrepareContent(View content)
+    {
+        content.HorizontalOptions = LayoutOptions.Fill;
+        content.VerticalOptions = LayoutOptions.Fill;
+        SetRow(content, 0);
+        SetColumn(content, 0);
+    }
+
+    private void InvalidateContentLayout(View content)
+    {
+        (content as IView)?.InvalidateMeasure();
+        (this as IView).InvalidateMeasure();
+        RequestParentLayout();
+
+        Dispatcher?.Dispatch(() =>
+        {
+            PrepareContent(content);
+            (content as IView)?.InvalidateMeasure();
+            (this as IView).InvalidateMeasure();
+            RequestParentLayout();
+        });
+    }
+
+    private void RequestParentLayout()
+    {
+        Item?.OnCellSizeChanged();
+        (Parent as IView)?.InvalidateMeasure();
     }
 
     public void NotifyBound()
