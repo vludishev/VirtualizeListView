@@ -65,7 +65,6 @@ public class VirtualizeListViewCell : ContentView
             (content as IView)?.InvalidateMeasure();
 #if ANDROID
             ArrangePlatformContent(content);
-            DumpSelectionIndicatorLayout(content, "content");
 #endif
             (this as IView).InvalidateMeasure();
             RequestParentLayout();
@@ -119,7 +118,6 @@ public class VirtualizeListViewCell : ContentView
                 (content as IView)?.InvalidateMeasure();
 #if ANDROID
                 ArrangePlatformContent(content);
-                DumpSelectionIndicatorLayout(content, "refresh");
 #endif
             }
 
@@ -231,33 +229,6 @@ public class VirtualizeListViewCell : ContentView
 
             currentHandler.PlatformArrange(currentBounds);
         });
-    }
-
-    private static void DumpSelectionIndicatorLayout(View view, string source)
-    {
-        foreach (var child in EnumerateSelfAndDescendants(view))
-        {
-            if (child is not BoxView boxView || !boxView.IsVisible)
-            {
-                continue;
-            }
-
-            if (boxView.WidthRequest < 20d || boxView.HeightRequest < 20d)
-            {
-                continue;
-            }
-
-            if (boxView.Handler?.PlatformView is not Android.Views.View platformView)
-            {
-                continue;
-            }
-
-            Android.Util.Log.Debug(
-                "VLV_DIAG",
-                $"{source}: managed bounds={boxView.Bounds}, desired={boxView.DesiredSize}, " +
-                $"native=({platformView.Left},{platformView.Top},{platformView.Right},{platformView.Bottom}), measured=({platformView.MeasuredWidth}x{platformView.MeasuredHeight}), " +
-                $"parent={platformView.Parent?.GetType().FullName}");
-        }
     }
 #endif
 
