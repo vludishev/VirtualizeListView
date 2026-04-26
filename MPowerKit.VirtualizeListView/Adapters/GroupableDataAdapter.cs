@@ -30,7 +30,7 @@ public class GroupableDataAdapter(VirtualizeListView listView) : DataAdapter(lis
     public override bool IsSuplementary(int position)
     {
         return base.IsSuplementary(position)
-            || InternalItems.ElementAtOrDefault(position) is GroupHeaderItem or GroupHeaderItem;
+            || InternalItems.ElementAtOrDefault(position) is GroupHeaderItem or GroupFooterItem;
     }
 
     protected override DataTemplate GetItemTemplate(AdapterItem item)
