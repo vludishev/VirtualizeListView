@@ -236,7 +236,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
 #if MACIOS
             if (isSupplementary)
             {
-                measure = MeasureSupplementaryItem(item, availableWidth, double.PositiveInfinity);
+                measure = MeasureSupplementaryItem(item, availableWidth, double.PositiveInfinity, updateHeightRequest: true);
                 item.MeasuredSize = measure;
                 item.Size = new(availableWidth, measure.Height);
                 return measure;
@@ -265,7 +265,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
 #if MACIOS
             if (isSupplementary)
             {
-                measure = MeasureSupplementaryItem(item, double.PositiveInfinity, availableHeight);
+                measure = MeasureSupplementaryItem(item, double.PositiveInfinity, availableHeight, updateHeightRequest: false);
                 item.MeasuredSize = measure;
                 item.Size = new(measure.Width, availableHeight);
                 return measure;
@@ -293,7 +293,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
     }
 
 #if MACIOS
-    private static Size MeasureSupplementaryItem(VirtualizeListViewItem item, double widthConstraint, double heightConstraint)
+    private static Size MeasureSupplementaryItem(VirtualizeListViewItem item, double widthConstraint, double heightConstraint, bool updateHeightRequest)
     {
         var measured = (item.Cell as IView)!.Measure(widthConstraint, heightConstraint);
         var result = measured;
@@ -310,7 +310,7 @@ public class GridItemsLayoutManager : VirtualizeItemsLayoutManger
                 Math.Max(contentMeasured.Height, desired.Height));
         }
 
-        if (item.Cell is { } holder)
+        if (updateHeightRequest && item.Cell is { } holder)
         {
             if (result.Height > 0d)
             {

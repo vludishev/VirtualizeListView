@@ -60,8 +60,6 @@ public class CellHolder : Grid
 
     private static void PrepareContent(View content)
     {
-        content.HorizontalOptions = LayoutOptions.Fill;
-        content.VerticalOptions = LayoutOptions.Fill;
         SetRow(content, 0);
         SetColumn(content, 0);
     }
@@ -188,9 +186,12 @@ public class CellHolder : Grid
         var content = Content;
         var measuredContent = TryMeasureContent(content, width);
         var measuredContentHeight = measuredContent.Height;
-        var isSupplementary = Item.AdapterItem is DataAdapter.HeaderItem or DataAdapter.FooterItem;
+        var isSupplementary = Item.AdapterItem is DataAdapter.HeaderItem
+            or DataAdapter.FooterItem
+            or GroupableDataAdapter.GroupHeaderItem
+            or GroupableDataAdapter.GroupFooterItem;
 
-        if (isSupplementary && measuredContentHeight > 0d)
+        if (isSupplementary && Item.IsOrientation(ScrollOrientation.Vertical) && measuredContentHeight > 0d)
         {
             // iOS may allocate supplementary cells to viewport height when using translations.
             // Keep holder height aligned with measured content to keep scroll range stable.

@@ -31,21 +31,8 @@ public class VirtualizeListViewCell : ContentView
             return;
         }
 
-        NormalizeContentLayout(content);
         AttachContentLayoutHandlers(content);
         InvalidateContentLayout(content);
-    }
-
-    private void NormalizeContentLayout(View content)
-    {
-        content.HorizontalOptions = LayoutOptions.Fill;
-        content.VerticalOptions = LayoutOptions.Fill;
-
-        if (content is ContentView { Content: View nestedContent })
-        {
-            nestedContent.HorizontalOptions = LayoutOptions.Fill;
-            nestedContent.VerticalOptions = LayoutOptions.Fill;
-        }
     }
 
     private void InvalidateContentLayout(View content)
@@ -61,7 +48,6 @@ public class VirtualizeListViewCell : ContentView
                 return;
             }
 
-            NormalizeContentLayout(content);
             (content as IView)?.InvalidateMeasure();
 #if ANDROID
             ArrangePlatformContent(content);
@@ -102,7 +88,7 @@ public class VirtualizeListViewCell : ContentView
 
     private void ScheduleContentLayoutRefresh()
     {
-        if (_layoutRefreshScheduled)
+        if (_layoutRefreshScheduled || !IsAttachedToActiveHolder())
         {
             return;
         }
@@ -112,9 +98,13 @@ public class VirtualizeListViewCell : ContentView
         {
             _layoutRefreshScheduled = false;
 
+            if (!IsAttachedToActiveHolder())
+            {
+                return;
+            }
+
             if (Content is View content)
             {
-                NormalizeContentLayout(content);
                 (content as IView)?.InvalidateMeasure();
 #if ANDROID
                 ArrangePlatformContent(content);
@@ -128,16 +118,18 @@ public class VirtualizeListViewCell : ContentView
 
     private void RequestParentLayout()
     {
-        (Parent as IView)?.InvalidateMeasure();
-
-        if (Parent is not CellHolder holder)
+        if (Parent is not CellHolder { Attached: true, Item: not null } holder)
         {
             return;
         }
 
-        holder.Item?.OnCellSizeChanged();
+        (holder as IView)?.InvalidateMeasure();
+        holder.Item.OnCellSizeChanged();
         (holder.Parent as IView)?.InvalidateMeasure();
     }
+
+    private bool IsAttachedToActiveHolder()
+        => Parent is CellHolder { Attached: true, Item: not null };
 
     private static bool IsLayoutAffectingProperty(string? propertyName)
     {
@@ -196,7 +188,7 @@ public class VirtualizeListViewCell : ContentView
             }
 
             var bounds = child.Bounds;
-            if (bounds.Width < 0d || bounds.Height < 0d)
+            if (bounds.Width <= 0d || bounds.Height <= 0d)
             {
                 continue;
             }
@@ -222,7 +214,7 @@ public class VirtualizeListViewCell : ContentView
             }
 
             var currentBounds = view.Bounds;
-            if (currentBounds.Width < 0d || currentBounds.Height < 0d)
+            if (currentBounds.Width <= 0d || currentBounds.Height <= 0d)
             {
                 return;
             }

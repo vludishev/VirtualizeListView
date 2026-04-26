@@ -88,6 +88,9 @@ public class VirtualizeListViewItem
         LayoutManager?.OnItemSizeChanged(this);
     }
 
+    internal bool IsOrientation(ScrollOrientation orientation)
+        => LayoutManager.ListView?.IsOrientation(orientation) is true;
+
     protected virtual bool IntersectsWithViewport()
     {
         var listview = LayoutManager.ListView!;
