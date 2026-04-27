@@ -787,11 +787,18 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
             ? GetDesiredLayoutSize(AvailableSpace.Width, double.PositiveInfinity, availableSpace)
             : GetDesiredLayoutSize(double.PositiveInfinity, AvailableSpace.Height, availableSpace);
 
-        if (PrevContentSize == desiredSize) return false;
+        if (PrevContentSize == desiredSize)
+        {
+#if MACIOS
+            ListView?.UpdateNativeContentSize(desiredSize);
+#endif
+            return false;
+        }
 
         PrevContentSize = desiredSize;
 
 #if MACIOS
+        ListView?.UpdateNativeContentSize(desiredSize);
         (this as IView)?.InvalidateMeasure();
         (ListView as IView)?.InvalidateMeasure();
 #else

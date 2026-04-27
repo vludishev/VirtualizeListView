@@ -8,6 +8,11 @@ using System.Windows.Input;
 using Microsoft.Maui.Platform;
 #endif
 
+#if MACIOS
+using CoreGraphics;
+using UIKit;
+#endif
+
 namespace MPowerKit.VirtualizeListView;
 
 public partial class VirtualizeListView : ScrollView
@@ -414,6 +419,25 @@ public partial class VirtualizeListView : ScrollView
         scroll?.AdjustScroll(dx, dy);
 #endif
     }
+
+#if MACIOS
+    internal virtual void UpdateNativeContentSize(Size contentSize)
+    {
+        if (Handler?.PlatformView is not UIScrollView scroll)
+        {
+            return;
+        }
+
+        var nativeContentSize = new CGSize(
+            Math.Max(contentSize.Width + Padding.HorizontalThickness, scroll.Bounds.Width),
+            Math.Max(contentSize.Height + Padding.VerticalThickness, scroll.Bounds.Height));
+
+        if (scroll.ContentSize != nativeContentSize)
+        {
+            scroll.ContentSize = nativeContentSize;
+        }
+    }
+#endif
 
     public virtual bool IsOrientation(ScrollOrientation orientation)
     {
