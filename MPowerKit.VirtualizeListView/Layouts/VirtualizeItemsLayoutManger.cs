@@ -75,17 +75,29 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
     {
         var listView = ListView;
         var availableSpace = AvailableSpace;
-        return listView is not null
-            && !double.IsNaN(listView.Width)
+        if (listView is null || Handler is null || !HasValidAvailableSpace(availableSpace))
+        {
+            return false;
+        }
+
+        var hasAllocatedSize = !double.IsNaN(listView.Width)
             && !double.IsNaN(listView.Height)
-            && !double.IsInfinity(availableSpace.Width)
-            && !double.IsInfinity(availableSpace.Height)
             && listView.Width > 0d
-            && listView.Height > 0d
-            && availableSpace.Width > 0d
-            && availableSpace.Height > 0d
-            && this.Handler is not null;
+            && listView.Height > 0d;
+
+        if (hasAllocatedSize)
+        {
+            return true;
+        }
+
+        return LaidOutItems.Count == 0 && Adapter?.ItemsCount > 0;
     }
+
+    private static bool HasValidAvailableSpace(Size availableSpace)
+        => IsPositiveFinite(availableSpace.Width) && IsPositiveFinite(availableSpace.Height);
+
+    private static bool IsPositiveFinite(double value)
+        => value > 0d && !double.IsNaN(value) && !double.IsInfinity(value);
 
     public virtual void SendListViewAdapterSet()
     {
@@ -234,9 +246,11 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
     /// </summary>
     public virtual void InvalidateLayout()
     {
+        var canLayout = DoesListViewHaveSize();
+
         ClearAll();
 
-        if (!DoesListViewHaveSize() || Adapter?.ItemsCount is null or 0) return;
+        if (!canLayout || Adapter?.ItemsCount is null or 0) return;
 
         var count = Adapter.ItemsCount;
 

@@ -314,12 +314,15 @@ public partial class VirtualizeListView : ScrollView
 
     protected virtual void RefreshLayout()
     {
-        if (Handler is null || Width <= 0d || Height <= 0d) return;
+        if (Handler is null) return;
 
         var layoutManager = LayoutManager;
         if (layoutManager is null) return;
 
-        if (layoutManager.ReadOnlyLaidOutItems.Count == 0 || layoutManager.VisibleItems.Count == 0)
+        var needsInitialLayout = layoutManager.ReadOnlyLaidOutItems.Count == 0 && Adapter?.ItemsCount > 0;
+        if (!needsInitialLayout && (Width <= 0d || Height <= 0d)) return;
+
+        if (needsInitialLayout || layoutManager.VisibleItems.Count == 0)
         {
             layoutManager.InvalidateLayout();
             return;
@@ -428,6 +431,10 @@ public partial class VirtualizeListView : ScrollView
 
         UpdateLayoutManagerAvailableSpace(availableWidth, availableHeight);
 
+#if MACIOS
+        EnsureInitialLayoutForMeasure(LayoutManager?.AvailableSpace ?? default);
+#endif
+
         base.MeasureOverride(widthConstraint, heightConstraint);
 
         var desiredWidth = widthConstraint;
@@ -447,6 +454,26 @@ public partial class VirtualizeListView : ScrollView
         return new(Math.Min(desiredWidth, widthConstraint), Math.Min(desiredHeight, heightConstraint));
     }
 
+#if MACIOS
+    private void EnsureInitialLayoutForMeasure(Size availableSpace)
+    {
+        var layoutManager = LayoutManager;
+        if (layoutManager is null
+            || layoutManager.ReadOnlyLaidOutItems.Count != 0
+            || Adapter?.ItemsCount is null or 0)
+        {
+            return;
+        }
+
+        if (!IsPositiveFinite(availableSpace.Width) || !IsPositiveFinite(availableSpace.Height))
+        {
+            return;
+        }
+
+        layoutManager.InvalidateLayout();
+    }
+#endif
+
     private static double ResolveMeasureSize(double constraint, double allocatedSize)
     {
         if (double.IsNaN(allocatedSize) || double.IsInfinity(allocatedSize) || allocatedSize <= 0d)
@@ -458,6 +485,9 @@ public partial class VirtualizeListView : ScrollView
             ? allocatedSize
             : Math.Min(constraint, allocatedSize);
     }
+
+    private static bool IsPositiveFinite(double value)
+        => value > 0d && !double.IsNaN(value) && !double.IsInfinity(value);
 
     public virtual async Task ScrollToItem(object item, ScrollToPosition scrollToPosition, bool animated)
     {
