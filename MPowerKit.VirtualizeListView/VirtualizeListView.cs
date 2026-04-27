@@ -314,12 +314,15 @@ public partial class VirtualizeListView : ScrollView
 
     protected virtual void RefreshLayout()
     {
-        if (Handler is null || Width <= 0d || Height <= 0d) return;
+        if (Handler is null) return;
 
         var layoutManager = LayoutManager;
         if (layoutManager is null) return;
 
-        if (layoutManager.ReadOnlyLaidOutItems.Count == 0 || layoutManager.VisibleItems.Count == 0)
+        var needsInitialLayout = layoutManager.ReadOnlyLaidOutItems.Count == 0 && Adapter?.ItemsCount > 0;
+        if (!needsInitialLayout && (Width <= 0d || Height <= 0d)) return;
+
+        if (needsInitialLayout || layoutManager.VisibleItems.Count == 0)
         {
             layoutManager.InvalidateLayout();
             return;
