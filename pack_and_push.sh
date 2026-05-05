@@ -5,7 +5,21 @@ PROJ="MPowerKit.VirtualizeListView/MPowerKit.VirtualizeListView.csproj"
 OUT="nupkg"
 read -rp "Feed name: " FEED
 read -rp "NuGet.Config path: " NUGET_CONFIG
-NUGET_CONFIG="${NUGET_CONFIG}"
+
+if [[ -z "$FEED" ]]; then
+  echo "Error: Feed name must not be empty." >&2
+  exit 1
+fi
+
+if [[ -z "$NUGET_CONFIG" ]]; then
+  echo "Error: NuGet.Config path must not be empty." >&2
+  exit 1
+fi
+
+if [[ ! -f "$NUGET_CONFIG" ]]; then
+  echo "Error: NuGet.Config file does not exist: $NUGET_CONFIG" >&2
+  exit 1
+fi
 
 echo "==> Building Release..."
 dotnet build "$PROJ" -c Release /p:WarningLevel=0
