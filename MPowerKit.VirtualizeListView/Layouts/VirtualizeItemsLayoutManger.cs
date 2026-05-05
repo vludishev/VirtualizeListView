@@ -1001,8 +1001,13 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
             }
             else
 #endif
-            // this triggers item size change when needed
-            MeasureItem(LaidOutItems, view.Item!, availableSpace);
+            if (!view.Item!.IsMeasureValid || view.Item.LastMeasuredAvailableSpace != availableSpace)
+            {
+                // this triggers item size change when needed
+                MeasureItem(LaidOutItems, view.Item!, availableSpace);
+                view.Item.IsMeasureValid = true;
+                view.Item.LastMeasuredAvailableSpace = availableSpace;
+            }
         }
 
         var desiredSize = GetDesiredLayoutSize(widthConstraint, heightConstraint, availableSpace);
