@@ -27,7 +27,16 @@ dotnet build "$PROJ" -c Release /p:WarningLevel=0
 echo "==> Packing..."
 dotnet pack "$PROJ" -c Release --no-build /p:WarningLevel=0 -o "$OUT"
 
-PACKAGE=$(ls "$OUT"/*.nupkg | sort -V | tail -1)
+shopt -s nullglob
+packages=("$OUT"/*.nupkg)
+shopt -u nullglob
+
+if [ "${#packages[@]}" -eq 0 ]; then
+  echo "ERROR: No .nupkg files found in $OUT after packing." >&2
+  exit 1
+fi
+
+PACKAGE=$(printf '%s\n' "${packages[@]}" | sort -V | tail -n 1)
 echo "==> Pushing $PACKAGE..."
 dotnet nuget push "$PACKAGE" \
   --source "$FEED" \
