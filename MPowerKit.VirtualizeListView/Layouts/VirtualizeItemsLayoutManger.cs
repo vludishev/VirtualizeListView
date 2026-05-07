@@ -93,11 +93,19 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         return LaidOutItems.Count == 0 && Adapter?.ItemsCount > 0;
     }
 
+    // Tolerance used when comparing available-space sizes to determine whether re-measurement is needed.
+    // Sub-pixel floating-point noise (e.g. from DPI scaling arithmetic) is typically well below this threshold.
+    private const double MeasureTolerance = 1e-6;
+
     private static bool HasValidAvailableSpace(Size availableSpace)
         => IsPositiveFinite(availableSpace.Width) && IsPositiveFinite(availableSpace.Height);
 
     private static bool IsPositiveFinite(double value)
         => value > 0d && !double.IsNaN(value) && !double.IsInfinity(value);
+
+    private static bool SizeApproximatelyEquals(Size a, Size b)
+        => Math.Abs(a.Width - b.Width) <= MeasureTolerance
+            && Math.Abs(a.Height - b.Height) <= MeasureTolerance;
 
     public virtual void SendListViewAdapterSet()
     {
@@ -1001,8 +1009,13 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
             }
             else
 #endif
-            // this triggers item size change when needed
-            MeasureItem(LaidOutItems, view.Item!, availableSpace);
+            if (!view.Item!.IsMeasureValid || !SizeApproximatelyEquals(view.Item.LastMeasuredAvailableSpace, availableSpace))
+            {
+                // this triggers item size change when needed
+                MeasureItem(LaidOutItems, view.Item!, availableSpace);
+                view.Item.IsMeasureValid = true;
+                view.Item.LastMeasuredAvailableSpace = availableSpace;
+            }
         }
 
         var desiredSize = GetDesiredLayoutSize(widthConstraint, heightConstraint, availableSpace);

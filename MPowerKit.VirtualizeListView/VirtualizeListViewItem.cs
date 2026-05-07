@@ -39,6 +39,8 @@ public class VirtualizeListViewItem
 
     public Size MeasuredSize { get; set; }
     public Size Size { get; set; }
+    public bool IsMeasureValid { get; set; }
+    public Size LastMeasuredAvailableSpace { get; set; }
     public Point LeftTopWithMargin { get; set; }
     public Thickness Margin { get; set; }
     public Point LeftTop
@@ -85,6 +87,7 @@ public class VirtualizeListViewItem
     {
         if (Cell?.BindingContext is not null && !ReferenceEquals(Cell.BindingContext, AdapterItem?.Data)) return;
 
+        IsMeasureValid = false;
         LayoutManager?.OnItemSizeChanged(this);
     }
 

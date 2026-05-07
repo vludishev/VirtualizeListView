@@ -250,7 +250,10 @@ public class DataAdapter : IDisposable
 
     public virtual void OnBindCell(CellHolder holder, AdapterItem item, int position)
     {
-        holder.BindingContext = item.Data;
+        if (holder.Item is not null)
+            holder.Item.IsMeasureValid = false;
+        if (!ReferenceEquals(holder.BindingContext, item.Data))
+            holder.BindingContext = item.Data;
         holder.Attached = true;
         holder.NotifyBound();
 
@@ -277,6 +280,8 @@ public class DataAdapter : IDisposable
             // theoretically bindingcontext should be nullified
             // but practically performance getting worse if uncommented
             //holder.BindingContext = null;
+            if (holder.Item is not null)
+                holder.Item.IsMeasureValid = false;
             holder.Attached = false;
         }
     }
