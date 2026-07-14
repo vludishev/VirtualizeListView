@@ -38,6 +38,30 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
 
     public Size AvailableSpace { get; set; }
 
+    internal Size CurrentContentSize
+    {
+        get
+        {
+            if (IsOrientation(ScrollOrientation.Vertical))
+            {
+                return GetDesiredLayoutSize(
+                    AvailableSpace.Width,
+                    double.PositiveInfinity,
+                    AvailableSpace);
+            }
+
+            if (IsOrientation(ScrollOrientation.Horizontal))
+            {
+                return GetDesiredLayoutSize(
+                    double.PositiveInfinity,
+                    AvailableSpace.Height,
+                    AvailableSpace);
+            }
+
+            return PrevContentSize;
+        }
+    }
+
     protected virtual LayoutOptions ListViewHorizontalOptions => ListView?.HorizontalOptions ?? LayoutOptions.Fill;
     protected virtual LayoutOptions ListViewVerticalOptions => ListView?.VerticalOptions ?? LayoutOptions.Fill;
 
@@ -106,6 +130,37 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
     private static bool SizeApproximatelyEquals(Size a, Size b)
         => Math.Abs(a.Width - b.Width) <= MeasureTolerance
             && Math.Abs(a.Height - b.Height) <= MeasureTolerance;
+
+    private void SeedReplacementExtent(
+        VirtualizeListViewItem previousItem,
+        VirtualizeListViewItem replacementItem)
+    {
+        if (!HaveSameTemplate(previousItem.Template, replacementItem.Template)
+            || previousItem.AdapterItem?.GetType() != replacementItem.AdapterItem?.GetType())
+        {
+            return;
+        }
+
+        if (IsOrientation(ScrollOrientation.Vertical)
+            && IsPositiveFinite(previousItem.Size.Height))
+        {
+            replacementItem.Size = new(replacementItem.Size.Width, previousItem.Size.Height);
+        }
+        else if (IsOrientation(ScrollOrientation.Horizontal)
+            && IsPositiveFinite(previousItem.Size.Width))
+        {
+            replacementItem.Size = new(previousItem.Size.Width, replacementItem.Size.Height);
+        }
+    }
+
+    private static bool HaveSameTemplate(DataTemplate? first, DataTemplate? second)
+    {
+        if (ReferenceEquals(first, second)) return true;
+
+        return first is IDataTemplateController firstController
+            && second is IDataTemplateController secondController
+            && firstController.Id == secondController.Id;
+    }
 
     public virtual void SendListViewAdapterSet()
     {
@@ -458,9 +513,15 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         // then we need to adjust the scroll position
         if (firstVisibleItem is null)
         {
-            var prevItem = LaidOutItems[startingIndex - 1];
-
             UpdateItemsLayout(startingIndex, false);
+
+            if (startingIndex == 0)
+            {
+                ListView!.NormalizeScrollOffset();
+                return;
+            }
+
+            var prevItem = LaidOutItems[startingIndex - 1];
             AdjustScrollIfNeeded(LaidOutItems, prevItem, new(ListView!.ScrollX - ListView.Padding.Left, ListView.ScrollY - ListView.Padding.Top, 0, 0));
             return;
         }
@@ -477,6 +538,7 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         // then we also need to adjust the scroll position
         if (firstVisibleItem.Position >= startingIndex)
         {
+            UpdateItemsLayout(startingIndex, false);
             AdjustScrollIfNeeded(LaidOutItems, firstVisibleItem, prevVisibleCellBounds);
         }
     }
@@ -498,7 +560,7 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
             throw new ArgumentException("Invalid range");
         }
 
-        var itemsToRemove = CollectionsMarshal.AsSpan(LaidOutItems[startingIndex..oldEnd]);
+        var itemsToRemove = LaidOutItems[startingIndex..oldEnd];
         LaidOutItems.RemoveRange(startingIndex, oldCount);
 
         for (int i = 0; i < oldCount; i++)
@@ -516,6 +578,11 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         for (int index = startingIndex; index < newEnd; index++)
         {
             var item = CreateItemForPosition(index);
+            var replacementOffset = index - startingIndex;
+            if (replacementOffset < itemsToRemove.Count)
+            {
+                SeedReplacementExtent(itemsToRemove[replacementOffset], item);
+            }
 
             LaidOutItems.Insert(index, item);
         }
@@ -525,11 +592,15 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         ShiftItemsConsecutively(LaidOutItems, startingIndex, newEnd);
         ShiftItemsChunk(LaidOutItems, newEnd, LaidOutItems.Count);
 
+        // Replacement items start with estimates. Measure any replacements in the
+        // viewport before calculating the anchor delta; off-screen replacements keep
+        // the previous same-template extent as their best-known estimate.
+        UpdateItemsLayout(startingIndex, false);
+
         // if we replaced items from the beginning
         // and if we are at the top we dont need to adjust the scroll position
         if (startingIndex == 0 && ListView!.ScrollX == 0d && ListView.ScrollY == 0d)
         {
-            UpdateItemsLayout(startingIndex, false);
             return;
         }
 
@@ -538,7 +609,7 @@ public abstract class VirtualizeItemsLayoutManger : Layout, ILayoutManager, IDis
         // so we dont need to adjust the scroll position
         if (firstVisibleItem is null || firstVisibleItem.Position < startingIndex)
         {
-            UpdateItemsLayout(startingIndex, false);
+            ListView!.NormalizeScrollOffset();
             return;
         }
 

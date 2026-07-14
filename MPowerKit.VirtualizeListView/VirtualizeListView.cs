@@ -82,6 +82,7 @@ public partial class VirtualizeListView : ScrollView
         else if (propertyName == ContentSizeProperty.PropertyName)
         {
             InvalidateMeasure();
+            NormalizeScrollOffset();
         }
 #endif
         else if (propertyName == AdapterProperty.PropertyName)
@@ -405,7 +406,7 @@ public partial class VirtualizeListView : ScrollView
         var pv = Handler?.PlatformView;
 #if MACIOS
         var scroll = pv as UIKit.UIScrollView;
-        scroll?.SetContentOffset(new(ScrollX + dx, ScrollY + dy), false);
+        if (scroll is not null) SetNativeContentOffset(scroll, dx, dy);
 #elif WINDOWS
         var scroll = pv as Microsoft.UI.Xaml.Controls.ScrollViewer;
         scroll?.ChangeView(ScrollX + dx, ScrollY + dy, null, true);
@@ -414,6 +415,71 @@ public partial class VirtualizeListView : ScrollView
         scroll?.AdjustScroll(dx, dy);
 #endif
     }
+
+    internal void NormalizeScrollOffset()
+    {
+#if MACIOS
+        if (Handler?.PlatformView is UIKit.UIScrollView scroll)
+        {
+            SetNativeContentOffset(scroll, 0d, 0d);
+        }
+#endif
+    }
+
+#if MACIOS
+    private void SetNativeContentOffset(UIKit.UIScrollView scroll, double dx, double dy)
+    {
+        var currentOffset = scroll.ContentOffset;
+        var nativeContentSize = scroll.ContentSize;
+        var layoutManager = LayoutManager;
+        var hasLayoutGeometry = layoutManager is not null
+            && (layoutManager.ReadOnlyLaidOutItems.Count > 0 || Adapter?.ItemsCount == 0);
+        var layoutContentSize = layoutManager?.CurrentContentSize ?? default;
+        var contentWidth = ScrollOffsetBounds.ResolveContentExtent(
+            hasLayoutGeometry ? layoutContentSize.Width : null,
+            Padding.HorizontalThickness,
+            nativeContentSize.Width);
+        var contentHeight = ScrollOffsetBounds.ResolveContentExtent(
+            hasLayoutGeometry ? layoutContentSize.Height : null,
+            Padding.VerticalThickness,
+            nativeContentSize.Height);
+        var inset = scroll.AdjustedContentInset;
+
+        // Preserve UIKit's transient rubber-band offset while the user is
+        // interacting; only programmatic anchor compensation is clamped.
+        var isInteracting = scroll.Tracking || scroll.Dragging || scroll.Decelerating;
+
+        var requestedX = currentOffset.X + dx;
+        var requestedY = currentOffset.Y + dy;
+        var targetX = isInteracting
+            ? requestedX
+            : ScrollOffsetBounds.Clamp(
+                requestedX,
+                contentWidth,
+                scroll.Bounds.Width,
+                inset.Left,
+                inset.Right);
+        var targetY = isInteracting
+            ? requestedY
+            : ScrollOffsetBounds.Clamp(
+                requestedY,
+                contentHeight,
+                scroll.Bounds.Height,
+                inset.Top,
+                inset.Bottom);
+
+        if (!ScrollOffsetBounds.RequiresUpdate(
+                currentOffset.X,
+                currentOffset.Y,
+                targetX,
+                targetY))
+        {
+            return;
+        }
+
+        scroll.SetContentOffset(new(targetX, targetY), false);
+    }
+#endif
 
     public virtual bool IsOrientation(ScrollOrientation orientation)
     {
